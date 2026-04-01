@@ -1,0 +1,66 @@
+name: CITMS CI/CD Production Pipeline
+
+on:
+  push:
+    branches: [ "main", "staging" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-cov httpx
+        
+    - name: Run Pytest Pytest-Cov (Coverage Gate)
+      run: |
+        cd backend
+        pytest --cov=app --cov-fail-under=80 --cov-report=xml
+
+  build-and-push:
+    needs: test-and-lint
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+    - uses: actions/checkout@v4
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Build and Push Backend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+        
+    - name: Build and Push Frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
