@@ -70,6 +70,7 @@ class InventoryIngestionService:
             await self.db.flush()
         else:
             device.last_seen = datetime.utcnow()
+            device.last_reconciled_at = datetime.utcnow() # v3.6 §4.1
             device.device_subtype = device_subtype
 
         # 1. Zebra Multi-docking
@@ -132,34 +133,64 @@ class InventoryIngestionService:
             self.db.add(conn_usb)
 
     async def _reconcile_software(self, device_id: uuid.UUID, reported_software: List[Dict[str, Any]]):
+        """
+        v3.6 §13.1: FULL_REPLACE STRATEGY & Regex Mapping.
+        """
+        from app.models.software import SoftwareCatalog, SoftwareInstallation
+        import re
+
+        # 1. Load Software Catalog for Regex mapping
+        catalog_stmt = select(SoftwareCatalog).where(SoftwareCatalog.deleted_at.is_(None))
+        catalog = (await self.db.execute(catalog_stmt)).scalars().all()
+
+        # 2. Map reported software strings to Catalog IDs using regex
+        mapped_reported = []
+        for rep in reported_software:
+            rep_name = rep["name"]
+            matched_catalog_id = None
+            for entry in catalog:
+                if entry.regex_pattern and re.search(entry.regex_pattern, rep_name, re.IGNORECASE):
+                    matched_catalog_id = entry.id
+                    break
+            mapped_reported.append({
+                "raw_name": rep_name,
+                "catalog_id": matched_catalog_id,
+                "version": rep.get("version", "1.0")
+            })
+
+        # 3. Get currently installed software (Baseline for Diff)
         stmt = select(SoftwareInstallation).where(
             SoftwareInstallation.device_id == device_id,
             SoftwareInstallation.deleted_at.is_(None)
         )
         existing_sw = (await self.db.execute(stmt)).scalars().all()
-        existing_names = {sw.software_name for sw in existing_sw}
-        reported_names = {sw["name"] for sw in reported_software}
         
-        # Uninstall trigger check (Soft Delete means DB trigger decreases used_seats)
-        for installed in existing_sw:
-            if installed.software_name not in reported_names:
-                installed.deleted_at = datetime.utcnow()
-                self.db.add(installed)
-                logger.info(f"Software {installed.software_name} reported missing. Trigger will reduce used_seats automagically.")
-                
-        # Install trigger check
+        # Mapping for diffing: we use (catalog_id if exists else raw_name) as identity
+        existing_map = { (sw.software_catalog_id or sw.software_name): sw for sw in existing_sw }
+        reported_identities = { (m["catalog_id"] or m["raw_name"]) for m in mapped_reported }
+
+        # 4. FULL_REPLACE: Soft-delete missing items
+        for identity, sw_obj in existing_map.items():
+            if identity not in reported_identities:
+                sw_obj.deleted_at = datetime.utcnow()
+                self.db.add(sw_obj)
+                logger.info(f"Software {identity} removed from device {device_id} (FULL_REPLACE)")
+
+        # 5. Insert new/updated items
         from app.services.license import LicenseService
         license_svc = LicenseService(self.db)
-        
-        for rep_sw in reported_software:
-            if rep_sw["name"] not in existing_names:
+
+        for m in mapped_reported:
+            identity = (m["catalog_id"] or m["raw_name"])
+            if identity not in existing_map:
                 sw_install = SoftwareInstallation(
                     device_id=device_id,
-                    software_name=rep_sw["name"],
-                    version=rep_sw.get("version", "1.0"),
+                    software_catalog_id=m["catalog_id"],
+                    software_name=m["raw_name"],
+                    version=m["version"],
                     install_date=datetime.utcnow()
                 )
                 self.db.add(sw_install)
                 await self.db.flush()
-                # Run the license assignment and potential violation publication
+                # Automated license assignment in v3.6
                 await license_svc.assign_license(sw_install)

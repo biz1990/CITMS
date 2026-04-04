@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api.routers import (
     auth, devices, inventory, itsm, 
-    procurement, vendors, workflow, license, reports, admin
+    procurement, vendors, workflow, license, reports, admin, inventory_survey
 )
 
 api_router = APIRouter()
@@ -15,3 +15,4 @@ api_router.include_router(workflow.router, prefix="/workflows", tags=["On/Offboa
 api_router.include_router(license.router, prefix="/licenses", tags=["Software & License Management"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Data Export & Logs"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Settings & RBAC Mapping"])
+api_router.include_router(inventory_survey.router, prefix="/physical-inventory", tags=["Physical Audit & Survey"])

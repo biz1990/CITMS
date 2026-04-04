@@ -32,6 +32,8 @@ class DeviceBase(BaseModel):
     status: str = "IN_USE"
     location_id: Optional[uuid.UUID] = None
     warranty_expiry_date: Optional[datetime] = None
+    rustdesk_id: Optional[str] = None
+    rustdesk_password: Optional[str] = None
 
 class DeviceCreate(DeviceBase):
     pass
@@ -42,6 +44,8 @@ class DeviceUpdate(BaseModel):
     status: Optional[str] = None
     location_id: Optional[uuid.UUID] = None
     warranty_expiry_date: Optional[datetime] = None
+    rustdesk_id: Optional[str] = None
+    rustdesk_password: Optional[str] = None
     version: int
 
 class DeviceResponse(DeviceBase):
@@ -52,6 +56,9 @@ class DeviceResponse(DeviceBase):
     updated_at: datetime
     version: int
     
+    agent_token_hash: Optional[str] = None
+    last_reconciled_at: Optional[datetime] = None
+    
     connections: List[DeviceConnectionResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
@@ -59,3 +66,8 @@ class DeviceResponse(DeviceBase):
 class ReconcileRequest(BaseModel):
     run_id: str
     devices: List[Dict[str, Any]]
+
+class RemoteSessionResponse(BaseModel):
+    rustdesk_id: str
+    temporary_session_token: str
+    expires_at: datetime

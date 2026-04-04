@@ -8,6 +8,9 @@ const LoginPage = React.lazy(() => import('../pages/Auth/Login'))
 const DashboardPage = React.lazy(() => import('../pages/Dashboard'))
 const AssetsPage = React.lazy(() => import('../pages/Assets'))
 const ITSMPage = React.lazy(() => import('../pages/ITSM'))
+const ReportsPage = React.lazy(() => import('../pages/Reports'))
+const PhysicalInventoryPage = React.lazy(() => import('../pages/PhysicalInventory'))
+const PhysicalInventoryScanPage = React.lazy(() => import('../pages/PhysicalInventory/Scan'))
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -26,6 +29,9 @@ export default function AppRoutes() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="assets" element={<AssetsPage />} />
           <Route path="itsm" element={<ITSMPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="physical-inventory" element={<PhysicalInventoryPage />} />
+          <Route path="physical-inventory/scan/:surveyId" element={<PhysicalInventoryScanPage />} />
         </Route>
       </Routes>
     </React.Suspense>

@@ -21,8 +21,30 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     
     # CORS
-    BACKEND_CORS_ORIGINS: list[str] = ["*"] # Consider restricting in production
+    BACKEND_CORS_ORIGINS: list[str] = ["*"]
     
+    # SMTP / Notifications (Module 7)
+    EMAILS_ENABLED: bool = True
+    SMTP_HOST: str = "smtp.internal.citms.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_TLS: bool = True
+    EMAILS_FROM_EMAIL: str = "noreply@citms.internal"
+    ADMIN_EMAIL: str = "admin@citms.internal"
+
+    # Storage / Reports (Module 8)
+    S3_ENDPOINT: str = "minio:9000"
+    S3_ACCESS_KEY: str = "minio_admin"
+    S3_SECRET_KEY: str = "minio_secret"
+    S3_BUCKET_REPORTS: str = "citms-reports"
+    S3_SECURE: bool = False
+
+    # RustDesk Remote Control (v3.6 §5.5)
+    RUSTDESK_API_URL: str = "http://rustdesk-api.internal:21114"
+    # Token used by CITMS to call RustDesk's administrative API
+    RUSTDESK_API_TOKEN: str = "citms_rustdesk_admin_token"
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 settings = Settings()

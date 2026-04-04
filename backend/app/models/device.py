@@ -34,8 +34,11 @@ class Device(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin, OptimisticLockMix
     depreciation_method: Mapped[Optional[str]] = mapped_column(String(20))
     
     rustdesk_id: Mapped[Optional[str]] = mapped_column(String(50))
-    rustdesk_password_enc: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
+    _deprecated_rustdesk_password_enc: Mapped[Optional[bytes]] = mapped_column("rustdesk_password_enc", LargeBinary) # v3.6 §1.4 Zero-password
     last_seen: Mapped[Optional[datetime]] = mapped_column()
+    
+    agent_token_hash: Mapped[Optional[str]] = mapped_column(String(255)) # v3.6 §1.4 HMAC-SHA256
+    last_reconciled_at: Mapped[Optional[datetime]] = mapped_column() # v3.6 §4.1
     
     warranty_expire_date: Mapped[Optional[date]] = mapped_column(Date)
     warranty_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("vendors.id"))

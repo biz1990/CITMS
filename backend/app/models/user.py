@@ -14,6 +14,7 @@ class Role(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     description: Mapped[Optional[str]] = mapped_column(Text)
 
     users: Mapped[List["UserRole"]] = relationship(back_populates="role", cascade="all, delete-orphan")
+    permissions: Mapped[List["RolePermission"]] = relationship(back_populates="role", cascade="all, delete-orphan")
 
 
 class UserRole(Base, UUIDMixin):
@@ -28,6 +29,27 @@ class UserRole(Base, UUIDMixin):
     user: Mapped["User"] = relationship(back_populates="roles", foreign_keys=[user_id])
     role: Mapped["Role"] = relationship(back_populates="users")
     assigner: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_by])
+
+
+class Permission(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "permissions"
+
+    code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+
+    roles: Mapped[List["RolePermission"]] = relationship(back_populates="permission", cascade="all, delete-orphan")
+
+
+class RolePermission(Base, UUIDMixin):
+    __tablename__ = "role_permissions"
+    __table_args__ = (UniqueConstraint('role_id', 'permission_id', name='uq_role_permission'),)
+
+    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    permission_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("permissions.id", ondelete="CASCADE"), nullable=False)
+
+    role: Mapped["Role"] = relationship(back_populates="permissions")
+    permission: Mapped["Permission"] = relationship(back_populates="roles")
 
 
 class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):

@@ -1,12 +1,17 @@
 import uuid
 import time
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.api.routers import api_router
+from app.core.cache import connect as cache_connect, disconnect as cache_disconnect
 from app.core.exceptions import CITMSException, citms_exception_handler, generic_exception_handler, OptimisticLockException
+from app.core.history import register_audit_listeners
+from app.core.middleware import AuditMiddleware
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -15,10 +20,23 @@ from slowapi.errors import RateLimitExceeded
 
 limiter = Limiter(key_func=get_remote_address)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: connect Redis on startup, disconnect on shutdown."""
+    await cache_connect()
+    yield
+    await cache_disconnect()
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan,
 )
+
+# Initialize Audit Trail Listeners (Module 10)
+register_audit_listeners()
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -27,6 +45,9 @@ app.add_middleware(SlowAPIMiddleware)
 # Exception Handlers (RFC 7807)
 app.add_exception_handler(CITMSException, citms_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
+
+# 0. Audit Tracking Middleware (Module 10)
+app.add_middleware(AuditMiddleware)
 
 # Custom Middlewares
 @app.middleware("http")

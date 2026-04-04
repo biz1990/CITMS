@@ -8,7 +8,9 @@ import {
   ToolOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  BarChartOutlined,
+  ScanOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -31,6 +33,8 @@ export default function RootLayout() {
     { key: '/dashboard', icon: <PieChartOutlined />, label: 'Dashboard' },
     { key: '/assets', icon: <DesktopOutlined />, label: 'Assets & IT' },
     { key: '/itsm', icon: <ToolOutlined />, label: 'ITSM Service' },
+    { key: '/physical-inventory', icon: <ScanOutlined />, label: 'Physical Audit' },
+    { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
     { key: '/users', icon: <TeamOutlined />, label: 'User Roles' },
   ]
 

@@ -67,3 +67,14 @@ async def get_device_topology(
     svc = AssetService(db)
     graph = await svc.build_topology_graph(id)
     return graph
+
+@router.post("/{id}/remote-session", response_model=RemoteSessionResponse)
+async def create_remote_session(
+    id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(RequireRole("devices:remote"))
+) -> Any:
+    """v3.6 §5.1, §13.2: Initiates a zero-password remote control session."""
+    from app.services.rustdesk import RustDeskService
+    svc = RustDeskService(db)
+    return await svc.create_remote_session(id)

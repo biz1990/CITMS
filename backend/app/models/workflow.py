@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB, INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, UUIDMixin, TimestampMixin, SoftDeleteMixin
+from .base import Base, UUIDMixin, TimestampMixin, SoftDeleteMixin, OptimisticLockMixin
 
 class DeviceAssignment(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "device_assignments"
@@ -36,7 +36,7 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), nullable=False)
 
 
-class WorkflowRequest(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
+class WorkflowRequest(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin, OptimisticLockMixin):
     __tablename__ = "workflow_requests"
 
     request_type: Mapped[str] = mapped_column(String(20), nullable=False)

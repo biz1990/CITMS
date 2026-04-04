@@ -6,6 +6,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, UUIDMixin, TimestampMixin, SoftDeleteMixin
 
+class SoftwareCatalog(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "software_catalog"
+
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    regex_pattern: Mapped[Optional[str]] = mapped_column(String(255)) # v3.6 §4.1
+    description: Mapped[Optional[str]] = mapped_column(Text)
+
 class SoftwareLicense(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "software_licenses"
 
@@ -23,6 +30,7 @@ class SoftwareInstallation(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "software_installations"
 
     device_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("devices.id"))
+    software_catalog_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("software_catalog.id")) # v3.6 §4.1
     software_name: Mapped[Optional[str]] = mapped_column(String(100))
     version: Mapped[Optional[str]] = mapped_column(String(50))
     publisher: Mapped[Optional[str]] = mapped_column(String(100))

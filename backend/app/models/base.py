@@ -27,4 +27,12 @@ class SoftDeleteMixin:
     )
 
 class OptimisticLockMixin:
+    """
+    v3.6 §1.4: Native SQLAlchemy Optimistic Locking.
+    Ensures 'version' is incremented on every update and checked against the database.
+    """
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    __mapper_args__ = {
+        "version_id_col": version
+    }
