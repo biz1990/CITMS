@@ -1,0 +1,5 @@
+{
+  "name": "CITMS 3.6",
+  "description": "Centralized IT Management System (CITMS) v3.6 - Enterprise IT Asset Management with DDD Modular Monolith architecture.",
+  "requestFramePermissions": ["camera", "geolocation"]
+}

@@ -1,0 +1,158 @@
+version: '3.8'
+
+services:
+  # --- Database (PostgreSQL) ---
+  db:
+    image: postgres:15-alpine
+    container_name: citms_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-citms_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-citms_password}
+      POSTGRES_DB: ${POSTGRES_DB:-citms_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citms_user -d citms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Cache & Message Broker (Redis) ---
+  redis:
+    image: redis:7-alpine
+    container_name: citms_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Object Storage (MinIO) ---
+  minio:
+    image: minio/minio
+    container_name: citms_minio
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-citms_minio_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-citms_minio_password}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  # --- Backend API ---
+  api:
+    build:
+      context: ./backend
+      target: api
+    container_name: citms_api
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-citms_user}:${POSTGRES_PASSWORD:-citms_password}@db:5432/${POSTGRES_DB:-citms_db}
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+    ports:
+      - "8000:8000"
+
+  # --- Celery Worker ---
+  worker:
+    build:
+      context: ./backend
+      target: worker
+    container_name: citms_worker
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-citms_user}:${POSTGRES_PASSWORD:-citms_password}@db:5432/${POSTGRES_DB:-citms_db}
+      - REDIS_URL=redis://redis:6379/0
+
+  # --- Celery Beat ---
+  beat:
+    build:
+      context: ./backend
+      target: beat
+    container_name: citms_beat
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-citms_user}:${POSTGRES_PASSWORD:-citms_password}@db:5432/${POSTGRES_DB:-citms_db}
+      - REDIS_URL=redis://redis:6379/0
+
+  # --- Redis Stream Consumer (Decoupled Event Processing) ---
+  event_consumer:
+    build:
+      context: ./backend
+      target: worker
+    container_name: citms_event_consumer
+    restart: always
+    # Start the consumer task immediately on worker startup
+    command: celery -A backend.src.core.celery worker -l info -P solo --concurrency=1 -n events@%h
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-citms_user}:${POSTGRES_PASSWORD:-citms_password}@db:5432/${POSTGRES_DB:-citms_db}
+      - REDIS_URL=redis://redis:6379/0
+
+  # --- Database Backup (SRS §9.2) ---
+  db_backup:
+    build:
+      context: ./backend
+      target: backup
+    container_name: citms_db_backup
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      - DB_HOST=db
+      - DB_NAME=${POSTGRES_DB:-citms_db}
+      - DB_USER=${POSTGRES_USER:-citms_user}
+      - PGPASSWORD=${POSTGRES_PASSWORD:-citms_password}
+      - S3_BUCKET=${S3_BUCKET_NAME:-citms-backups}
+      - S3_ENDPOINT=http://minio:9000
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-citms_minio_user}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-citms_minio_password}
+
+  # --- Frontend (Static Build) ---
+  frontend:
+    image: nginx:alpine
+    container_name: citms_frontend
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html
+      - ./nginx/conf.d:/etc/nginx/conf.d
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

@@ -1,0 +1,369 @@
+openapi: 3.1.0
+info:
+  title: CITMS 3.6 API Documentation
+  description: |
+    Centralized IT Management System (CITMS) v3.6 API.
+    This API handles IT Asset Management, Inventory Ingestion, License Compliance, ITSM, Remote Control, Procurement, and Workflow Automation.
+    
+    All error responses follow the **RFC 7807 (Problem Details for HTTP APIs)** standard.
+  version: "3.6.0"
+  contact:
+    name: CITMS Support
+    email: support@citms.com
+
+servers:
+  - url: https://api.citms.com/api/v1
+    description: Production Server
+  - url: http://localhost:8000/api/v1
+    description: Local Development Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # RFC 7807 Error Schema
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference that identifies the problem type.
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type.
+        status:
+          type: integer
+          description: The HTTP status code.
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence of the problem.
+        trace_id:
+          type: string
+          format: uuid
+          description: Correlation ID for tracing (OpenTelemetry).
+
+    # Auth Schemas
+    Token:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          default: bearer
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        role:
+          type: string
+        is_active:
+          type: boolean
+
+    # Asset Schemas
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        hostname:
+          type: string
+        serial_number:
+          type: string
+        device_type:
+          type: string
+          enum: [WORKSTATION, SERVER, LAPTOP, NETWORK, MOBILE]
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE, MAINTENANCE, DISPOSED]
+        ip_address:
+          type: string
+        mac_address:
+          type: string
+        last_seen:
+          type: string
+          format: date-time
+
+    # ITSM Schemas
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, PENDING, RESOLVED, CLOSED]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        reporter_id:
+          type: string
+          format: uuid
+        assignee_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  # --- AUTHENTICATION ---
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login to get access token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              required: [username, password]
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  # --- ASSET MANAGEMENT ---
+  /devices:
+    get:
+      tags: [Asset Management]
+      summary: List all devices
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+
+  /devices/{id}:
+    get:
+      tags: [Asset Management]
+      summary: Get device details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Device details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+
+  # --- INVENTORY ---
+  /inventory/ingest:
+    post:
+      tags: [Inventory Ingestion]
+      summary: Ingest hardware/software data from Agent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hostname:
+                  type: string
+                serial_number:
+                  type: string
+                os_info:
+                  type: object
+                hardware:
+                  type: object
+                software_list:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '202':
+          description: Ingestion request accepted for processing
+
+  # --- ITSM ---
+  /tickets:
+    get:
+      tags: [ITSM & Ticket System]
+      summary: List support tickets
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ticket'
+    post:
+      tags: [ITSM & Ticket System]
+      summary: Create a new ticket
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  type: string
+              required: [title, description]
+      responses:
+        '201':
+          description: Ticket created
+
+  # --- PROCUREMENT ---
+  /procurement/purchase-orders:
+    post:
+      tags: [Procurement & Workflow]
+      summary: Create a new Purchase Order
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vendor_id:
+                  type: string
+                  format: uuid
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      quantity:
+                        type: integer
+                      unit_price:
+                        type: number
+      responses:
+        '201':
+          description: PO created successfully
+
+  # --- NOTIFICATIONS ---
+  /notifications:
+    get:
+      tags: [Notification Engine]
+      summary: Get user notifications
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    title:
+                      type: string
+                    message:
+                      type: string
+                    is_read:
+                      type: boolean
+
+  # --- REPORTS ---
+  /reports/asset-inventory:
+    get:
+      tags: [Reports & Materialized Views]
+      summary: Generate Asset Inventory Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv, xlsx, pdf]
+            default: json
+      responses:
+        '200':
+          description: Report data or file stream

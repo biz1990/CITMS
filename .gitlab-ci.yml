@@ -1,0 +1,77 @@
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DOCKER_REGISTRY: registry.citms.com
+  IMAGE_NAME: $DOCKER_REGISTRY/citms-backend
+  FRONTEND_IMAGE: $DOCKER_REGISTRY/citms-frontend
+
+# --- Build Stage ---
+build_backend:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $DOCKER_REGISTRY
+    - docker build --target api -t $IMAGE_NAME:$CI_COMMIT_SHA ./backend
+    - docker push $IMAGE_NAME:$CI_COMMIT_SHA
+
+build_frontend:
+  stage: build
+  image: node:20-alpine
+  script:
+    - cd frontend
+    - npm install
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist/
+
+# --- Test Stage ---
+run_tests:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - cd backend
+    - pip install -r requirements.txt
+    - pytest tests/
+
+# --- Deploy Stage (Blue-Green) ---
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client curl
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+  script:
+    - echo "Starting Blue-Green Deployment..."
+    # 1. Determine current active color (blue or green)
+    - CURRENT_COLOR=$(ssh $DEPLOY_USER@$DEPLOY_HOST "cat /opt/citms/active_color || echo 'green'")
+    - NEW_COLOR=$([ "$CURRENT_COLOR" == "blue" ] && echo "green" || echo "blue")
+    
+    # 2. Deploy to new color environment
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "cd /opt/citms && docker-compose -p citms_$NEW_COLOR up -d --build"
+    
+    # 3. Health check for new environment
+    - sleep 30
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "curl -f http://localhost:8000/health"
+    
+    # 4. Switch Nginx traffic to new color
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "sed -i 's/citms_$CURRENT_COLOR/citms_$NEW_COLOR/g' /etc/nginx/conf.d/citms.conf && nginx -s reload"
+    
+    # 5. Update active color flag
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "echo $NEW_COLOR > /opt/citms/active_color"
+    
+    # 6. Optional: Stop old environment
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "docker-compose -p citms_$CURRENT_COLOR stop"
+  only:
+    - main
+  environment:
+    name: production
+    url: https://citms.com
