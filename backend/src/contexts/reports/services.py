@@ -1,5 +1,6 @@
 import pandas as pd
 import io
+import os
 from datetime import datetime
 from typing import List, Any, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +8,8 @@ from backend.src.contexts.reports.repositories import ReportRepository
 from backend.src.contexts.reports.schemas import ReportFilter
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
-from xhtml2pdf import pisa
+from weasyprint import HTML
+from jinja2 import Environment, FileSystemLoader
 
 class ReportService:
     def __init__(self, db: AsyncSession):
@@ -145,54 +147,34 @@ class ReportService:
         raise HTTPException(status_code=400, detail="Unsupported export format")
 
     def _render_pdf(self, df: pd.DataFrame, title: str, filename: str):
-        """Render DataFrame to PDF using xhtml2pdf."""
-        html_content = f"""
-        <html>
-        <head>
-            <style>
-                @page {{
-                    size: a4 landscape;
-                    margin: 1cm;
-                    @bottom-right {{
-                        content: "Trang " counter(page);
-                    }}
-                    @bottom-left {{
-                        content: "CITMS v3.6 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}";
-                    }}
-                }}
-                body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }}
-                h1 {{ text-align: center; color: #2c3e50; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-                th, td {{ border: 1px solid #bdc3c7; padding: 8px; text-align: left; }}
-                th {{ background-color: #ecf0f1; font-weight: bold; }}
-                tr:nth-child(even) {{ background-color: #f9f9f9; }}
-            </style>
-        </head>
-        <body>
-            <h1>{title.replace('_', ' ')} Report</h1>
-            <table>
-                <thead>
-                    <tr>
-                        {''.join(f'<th>{col}</th>' for col in df.columns)}
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(f"<tr>{''.join(f'<td>{val}</td>' for val in row)}</tr>" for row in df.values)}
-                </tbody>
-            </table>
-        </body>
-        </html>
-        """
-        
-        result = io.BytesIO()
-        pisa_status = pisa.CreatePDF(io.BytesIO(html_content.encode("utf-8")), dest=result)
-        
-        if pisa_status.err:
-            raise HTTPException(status_code=500, detail="Failed to generate PDF report")
+        """Render DataFrame to PDF using WeasyPrint and Jinja2."""
+        try:
+            # Setup Jinja2 Environment
+            template_dir = os.path.join(os.path.dirname(__file__), "../../templates/reports")
+            env = Environment(loader=FileSystemLoader(template_dir))
+            template = env.get_template("base_report.html")
             
-        result.seek(0)
-        return StreamingResponse(
-            result,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
+            # Prepare context data
+            columns = df.columns.tolist()
+            rows = df.values.tolist()
+            
+            # Render HTML string using Jinja2
+            html_content = template.render(
+                title=title.replace('_', ' ') + " Report",
+                columns=columns,
+                rows=rows,
+                current_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            )
+            
+            # Generate PDF using WeasyPrint
+            pdf_file = io.BytesIO()
+            HTML(string=html_content).write_pdf(pdf_file)
+            pdf_file.seek(0)
+            
+            return StreamingResponse(
+                pdf_file,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate PDF report: {str(e)}")
