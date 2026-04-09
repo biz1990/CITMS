@@ -22,11 +22,15 @@ import {
   Cpu, 
   Wrench, 
   ShieldAlert,
-  History
+  History,
+  QrCode,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import apiClient from '@/api/client';
+
+import QRCodeDialog from '@/components/assets/QRCodeDialog';
 
 // Tab Components (to be created)
 import DeviceGeneralTab from '@/components/assets/DeviceGeneralTab';
@@ -39,6 +43,22 @@ const DeviceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('general');
+  const [isQRUIOpen, setIsQRUIOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  // Fetch Preview
+  const fetchPreview = async () => {
+    setIsPreviewLoading(true);
+    try {
+      const res = await apiClient.get(`/devices/${id}/preview`);
+      setPreviewData(res.data);
+    } catch (err) {
+      console.error('Failed to fetch preview', err);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
 
   // Fetch Device Data
   const { data: device, isLoading, error } = useQuery({
@@ -78,27 +98,50 @@ const DeviceDetailPage: React.FC = () => {
               {device.alternative_macs && device.alternative_macs.length > 1 && (
                 <Badge variant="outline" className="border-orange-500 text-orange-600">MAC Changed</Badge>
               )}
-              {device.components?.some((c: any) => c.new_peripheral) && (
-                <Badge variant="outline" className="border-blue-500 text-blue-600">New Peripheral</Badge>
-              )}
             </div>
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/50 border text-xs font-medium">
-            <div className={`h-2 w-2 rounded-full ${
-              device.last_seen && (new Date().getTime() - new Date(device.last_seen).getTime() < 5 * 60 * 1000)
-                ? 'bg-green-500 animate-pulse'
-                : 'bg-red-500'
-            }`} />
-            RustDesk: {device.last_seen && (new Date().getTime() - new Date(device.last_seen).getTime() < 5 * 60 * 1000) ? 'Online' : 'Offline'}
-          </div>
+          <Button variant="outline" onClick={() => setIsQRUIOpen(true)}>
+            <QrCode className="mr-2 h-4 w-4" /> Print QR
+          </Button>
           <Button variant="outline" onClick={() => navigate(`/devices/${id}/remote-session`)}>
             <Network className="mr-2 h-4 w-4" /> Remote Control
           </Button>
           <Button>Edit Device</Button>
         </div>
       </div>
+
+      {/* Real-time Preview Section */}
+      {device.status === 'ONLINE' && (
+        <Card className="border-primary/20 bg-primary/5 overflow-hidden">
+          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b bg-card/50">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-bold">Real-time Desktop Preview</CardTitle>
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={fetchPreview} disabled={isPreviewLoading}>
+              {isPreviewLoading ? 'Refreshing...' : 'Refresh Preview'}
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0 flex items-center justify-center min-h-[200px] relative">
+            {previewData?.preview_url ? (
+              <img 
+                src={previewData.preview_url} 
+                alt="Desktop Preview" 
+                className="w-full h-auto max-h-[400px] object-contain animate-in fade-in zoom-in-95"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                  <Monitor className="h-5 w-5 opacity-20" />
+                </div>
+                <p className="text-xs font-medium">Click "Refresh Preview" to view live desktop</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="general" className="w-full" onValueChange={setActiveTab}>
@@ -142,6 +185,13 @@ const DeviceDetailPage: React.FC = () => {
           </TabsContent>
         </div>
       </Tabs>
+
+      <QRCodeDialog 
+        isOpen={isQRUIOpen} 
+        onClose={() => setIsQRUIOpen(false)} 
+        data={`CITMS:ASSET:${device.asset_tag || device.id}`}
+        label={device.asset_tag || device.hostname}
+      />
     </div>
   );
 };

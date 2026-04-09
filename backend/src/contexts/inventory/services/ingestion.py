@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from typing import List, Optional, Any
 from uuid import UUID
-from sqlalchemy import select, and_, update, func, delete
+from sqlalchemy import select, and_, update, func, delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.src.contexts.asset.models import Device, DeviceComponent, DeviceConnection, DeviceStatusHistory
 from backend.src.contexts.inventory.models import SoftwareCatalog, SoftwareInstallation, InventoryRunLog
@@ -466,9 +466,17 @@ class InventoryIngestionService:
         return dtype, dsubtype
 
     async def _sync_software(self, device: Device, reported_software: List[Any]):
-        # 1. Get all regex patterns
+        # 1. Get all regex patterns and compile them into a cache
         res = await self.db.execute(select(SoftwareCatalog).where(SoftwareCatalog.regex_pattern != None))
         catalogs = res.scalars().all()
+        
+        # Performance Optimization: Compile patterns once per report
+        compiled_catalogs = []
+        for cat in catalogs:
+            try:
+                compiled_catalogs.append((cat.id, re.compile(cat.regex_pattern, re.IGNORECASE)))
+            except re.error:
+                continue # Skip invalid regex
         
         # 2. Map reported strings to catalog IDs
         mapped_installations = []
@@ -477,9 +485,9 @@ class InventoryIngestionService:
             is_blacklisted = await self.license_service.check_software_blacklist(rs.raw_name, device.id)
             
             catalog_id = None
-            for cat in catalogs:
-                if re.search(cat.regex_pattern, rs.raw_name, re.IGNORECASE):
-                    catalog_id = cat.id
+            for cat_id, pattern in compiled_catalogs:
+                if pattern.search(rs.raw_name):
+                    catalog_id = cat_id
                     break
             
             if not catalog_id:

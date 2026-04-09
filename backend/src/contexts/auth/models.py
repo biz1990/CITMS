@@ -93,6 +93,14 @@ class Department(CITMSBaseModel):
 
 class AuditLog(CITMSBaseModel):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index(
+            "ix_audit_logs_details_gin",
+            "details",
+            postgresql_using="gin"
+        ),
+    )
+
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
     action: Mapped[str] = mapped_column(String(100))
     resource_type: Mapped[str] = mapped_column(String(50))

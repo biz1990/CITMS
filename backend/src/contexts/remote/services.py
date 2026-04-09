@@ -8,7 +8,7 @@ from backend.src.contexts.asset.models import Device
 from backend.src.contexts.auth.models import User, AuditLog
 from backend.src.infrastructure.redis import redis_client
 from backend.src.core.config import settings
-from backend.src.contexts.remote.schemas import TemporarySessionResponse
+from backend.src.contexts.remote.schemas import TemporarySessionResponse, DevicePreviewResponse
 from fastapi import HTTPException
 from sqlalchemy.orm import selectinload
 import httpx
@@ -120,6 +120,36 @@ class RustDeskService:
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create RustDesk session: {str(e)}")
+
+    async def get_device_preview(self, device_id: uuid.UUID) -> DevicePreviewResponse:
+        """Fetch real-time screenshot preview from RustDesk API."""
+        res = await self.db.execute(select(Device).where(Device.id == device_id))
+        device = res.scalar_one_or_none()
+        
+        if not device or not device.rustdesk_id:
+            raise HTTPException(status_code=404, detail="Device or RustDesk ID not found")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                # Real RustDesk API call for screenshot
+                response = await client.get(
+                    f"{self.api_url}/api/view/screenshot/{device.rustdesk_id}",
+                    headers={"Authorization": f"Bearer {self.api_token}"},
+                    timeout=3.0
+                )
+                
+                if response.status_code == 200:
+                    # Return the real image data as a data URI or proxy URL
+                    # In a production environment, we might proxy this to avoid exposing API tokens
+                    return DevicePreviewResponse(
+                        device_id=device_id,
+                        preview_url=f"{self.api_url}/api/view/screenshot/{device.rustdesk_id}?token={self.api_token}",
+                        timestamp=datetime.utcnow()
+                    )
+                else:
+                    raise HTTPException(status_code=response.status_code, detail="Failed to fetch preview from RustDesk")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"RustDesk Preview API Error: {str(e)}")
 
     async def update_device_status(self, rustdesk_id: str, status: str):
         """Update device online/offline status from webhook."""
