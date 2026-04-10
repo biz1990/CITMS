@@ -106,11 +106,22 @@ Hệ thống CITMS v3.6 sử dụng Docker Compose để điều phối 7 dịch
 
 ```bash
 # Cần cài đặt thư viện và build frontend trước nếu muốn phục vụ qua docker compose
+
+# 1. Cài đặt Node.js bản 20 (cập nhật đè lên bản cũ)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# 2. Xóa sạch cache, thư viện cũ và file lock bị lỗi
+rm -rf node_modules package-lock.json
+
+# 3. Cài đặt lại thư viện với phiên bản Node mới
 npm install
-npm run build 
+npm install qrcode @types/qrcode
+# 4. Build lại dự án
+npm run build
 
 # Khởi chạy toàn bộ hệ thống ở chế độ chạy ngầm
-docker compose up -d --build
+sudo docker compose up -d --build
 ```
 
 **Thứ tự khởi động tự động:**

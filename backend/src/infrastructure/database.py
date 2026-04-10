@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, with_loader_criteria
+from sqlalchemy.orm import DeclarativeBase, with_loader_criteria, Session
 from sqlalchemy import event, select, and_
 from backend.src.core.config import settings
 
@@ -11,7 +11,7 @@ engine = create_async_engine(
     max_overflow=10,
 )
 
-@event.listens_for(AsyncSession, "do_orm_execute")
+@event.listens_for(Session, "do_orm_execute")
 def _add_soft_delete_filter(execute_state):
     """Global soft delete filter for all SELECT queries."""
     if (
