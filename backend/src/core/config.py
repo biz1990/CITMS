@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List
-from pydantic import PostgresDsn, RedisDsn, field_validator
+from pydantic import PostgresDsn, RedisDsn, field_validator, ValidationInfo
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "CITMS 3.6"
@@ -18,10 +18,10 @@ class Settings(BaseSettings):
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
-    def assemble_db_connection(cls, v: Optional[str], values: any) -> any:
+    def assemble_db_connection(cls, v: Optional[str], info: ValidationInfo) -> any:
         if isinstance(v, str) and v:
             return v
-        return f"postgresql+asyncpg://{values.data.get('POSTGRES_USER')}:{values.data.get('POSTGRES_PASSWORD')}@{values.data.get('POSTGRES_SERVER')}/{values.data.get('POSTGRES_DB')}"
+        return f"postgresql+asyncpg://{info.data.get('POSTGRES_USER')}:{info.data.get('POSTGRES_PASSWORD')}@{info.data.get('POSTGRES_SERVER')}/{info.data.get('POSTGRES_DB')}"
 
     # Redis
     REDIS_HOST: str = "localhost"
@@ -30,10 +30,10 @@ class Settings(BaseSettings):
 
     @field_validator("REDIS_URL", mode="before")
     @classmethod
-    def assemble_redis_connection(cls, v: Optional[str], values: any) -> any:
+    def assemble_redis_connection(cls, v: Optional[str], info: ValidationInfo) -> any:
         if isinstance(v, str) and v:
             return v
-        return f"redis://{values.data.get('REDIS_HOST')}:{values.data.get('REDIS_PORT')}/0"
+        return f"redis://{info.data.get('REDIS_HOST')}:{info.data.get('REDIS_PORT')}/0"
 
     # OpenTelemetry
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"

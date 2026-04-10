@@ -1,7 +1,7 @@
 # --- Stage 1: Build & Dependencies ---
 FROM python:3.10-slim-bullseye AS builder
 
-WORKDIR /app
+WORKDIR /app/backend
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # --- Stage 2: Base Runtime ---
 FROM python:3.10-slim-bullseye AS runtime-base
 
-WORKDIR /app
+WORKDIR /app/backend
 
 # Install runtime dependencies (libpq for postgres)
 RUN apt-get update && apt-get install -y --no-install-recommends \
