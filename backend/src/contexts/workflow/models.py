@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, text
+from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.src.infrastructure.models.base import CITMSBaseModel
@@ -27,7 +27,7 @@ class WorkflowRequest(CITMSBaseModel):
     status: Mapped[WorkflowStatus] = mapped_column(String(30), default=WorkflowStatus.PENDING_IT)
     requested_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     effective_date: Mapped[datetime] = mapped_column(DateTime)
-    notes: Mapped[Optional[str]] = mapped_column(text)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
     
     # Relationships
     approvals: Mapped[List["ApprovalHistory"]] = relationship(back_populates="request")
@@ -49,7 +49,7 @@ class ApprovalHistory(CITMSBaseModel):
     request_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_requests.id"))
     approver_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     status: Mapped[str] = mapped_column(String(20)) # APPROVED, REJECTED
-    comments: Mapped[Optional[str]] = mapped_column(text)
+    comments: Mapped[Optional[str]] = mapped_column(Text)
     step_name: Mapped[Optional[str]] = mapped_column(String(50))
     
     request: Mapped["WorkflowRequest"] = relationship(back_populates="approvals")

@@ -17,3 +17,9 @@ class RustDeskWebhookPayload(BaseModel):
     uuid: Optional[str] = None
     ip: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class DevicePreviewResponse(BaseModel):
+    device_id: UUID
+    preview_url: str
+    timestamp: datetime
+

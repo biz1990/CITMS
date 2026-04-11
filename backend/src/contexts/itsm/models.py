@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, text, Enum
+from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, Text, Enum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.src.infrastructure.models.base import CITMSBaseModel
@@ -26,7 +26,7 @@ class Ticket(CITMSBaseModel):
     __tablename__ = "tickets"
     
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    description: Mapped[str] = mapped_column(text)
+    description: Mapped[str] = mapped_column(Text)
     status: Mapped[TicketStatus] = mapped_column(String(30), default=TicketStatus.OPEN)
     priority: Mapped[TicketPriority] = mapped_column(String(20), default=TicketPriority.MEDIUM)
     category: Mapped[Optional[str]] = mapped_column(String(50))
@@ -46,8 +46,8 @@ class Ticket(CITMSBaseModel):
     
     # Change Management
     is_change_request: Mapped[bool] = mapped_column(Boolean, default=False)
-    change_plan: Mapped[Optional[str]] = mapped_column(text)
-    rollback_plan: Mapped[Optional[str]] = mapped_column(text)
+    change_plan: Mapped[Optional[str]] = mapped_column(Text)
+    rollback_plan: Mapped[Optional[str]] = mapped_column(Text)
     cab_approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     cab_approver_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
     
@@ -60,7 +60,7 @@ class TicketComment(CITMSBaseModel):
     
     ticket_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tickets.id"))
     author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    content: Mapped[str] = mapped_column(text)
+    content: Mapped[str] = mapped_column(Text)
     is_internal: Mapped[bool] = mapped_column(Boolean, default=False)
     attachments: Mapped[Optional[dict]] = mapped_column(JSONB)
     
@@ -72,7 +72,7 @@ class MaintenanceLog(CITMSBaseModel):
     device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id"))
     ticket_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("tickets.id"))
     technician_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    action_taken: Mapped[str] = mapped_column(text)
+    action_taken: Mapped[str] = mapped_column(Text)
     spare_parts_used: Mapped[Optional[dict]] = mapped_column(JSONB)
     cost: Mapped[float] = mapped_column(Integer, default=0) # In minor units or decimal
     maintenance_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

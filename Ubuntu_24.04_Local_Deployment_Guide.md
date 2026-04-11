@@ -146,14 +146,21 @@ Lệnh này sẽ tạo cấu trúc bảng và bật các extension cần thiết
 docker exec -it citms_api alembic upgrade head
 ```
 
-### 7.2 Nạp dữ liệu mẫu (Seed Data)
+### 7.2 Cài đặt Triggers và Materialized Views
+Tiếp theo, tạo các Trigger và View để tự động hóa một số ngiệp vụ Database:
+
+```bash
+docker exec -i citms_db psql -U citms_user -d citms_db < backend/init_db.sql
+```
+
+### 7.3 Nạp dữ liệu mẫu (Seed Data)
 Nạp các quyền, vai trò (Roles/Permissions) và phòng ban mặc định.
 
 ```bash
 docker exec -it citms_api python backend/scripts/seed_initial_data.py
 ```
 
-### 7.3 Tạo tài khoản Super Admin đầu tiên
+### 7.4 Tạo tài khoản Super Admin đầu tiên
 Thay đổi email và password theo ý muốn của bạn.
 
 ```bash
