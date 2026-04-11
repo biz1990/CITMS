@@ -34,6 +34,10 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
+# Alias for backward compatibility with Celery tasks
+SessionLocal = AsyncSessionLocal
+
+
 class Base(DeclarativeBase):
     pass
 
