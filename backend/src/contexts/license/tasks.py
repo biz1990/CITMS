@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.src.contexts.license.models import SoftwareLicense
 from backend.src.infrastructure.database import SessionLocal
-from backend.src.contexts.notification.services import NotificationService
+from backend.src.contexts.notification.services.notifier import NotificationService
 from backend.src.infrastructure.repositories.base import BaseRepository
 from backend.src.contexts.notification.models import Notification
 import logging
