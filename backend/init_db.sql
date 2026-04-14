@@ -17,7 +17,8 @@ DO $$
 DECLARE
     t text;
 BEGIN
-    FOR t IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE') LOOP
+    FOR t IN (SELECT table_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'updated_at') LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS trigger_update_updated_at ON %I', t);
         EXECUTE format('CREATE TRIGGER trigger_update_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()', t);
     END LOOP;
 END;
@@ -90,11 +91,11 @@ $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT FROM pg_extension WHERE extname = 'pg_cron') THEN
-        -- Refresh every hour
-        PERFORM cron.schedule('refresh-depreciation-hourly', '0 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_asset_depreciation');
-        PERFORM cron.schedule('refresh-usage-hourly', '5 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_software_usage_top10');
-        PERFORM cron.schedule('refresh-sla-hourly', '10 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_ticket_sla_stats');
-        PERFORM cron.schedule('refresh-offline-hourly', '15 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_offline_missing_devices');
+        -- Refresh according to Spec 3.6
+        PERFORM cron.schedule('refresh-depreciation-daily', '0 2 * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_asset_depreciation');
+        PERFORM cron.schedule('refresh-usage-15m', '*/15 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_software_usage_top10');
+        PERFORM cron.schedule('refresh-sla-20m', '*/20 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_ticket_sla_stats');
+        PERFORM cron.schedule('refresh-offline-10m', '*/10 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_offline_missing_devices');
     END IF;
 END;
 $$;
@@ -163,6 +164,37 @@ AND (last_seen < NOW() - INTERVAL '7 days' OR last_seen IS NULL)
 AND status != 'RETIRED';
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_offline_missing_devices_id ON mv_offline_missing_devices(id);
+
+-- ===============================================================
+-- Remediation Patch v3.6.2
+-- ===============================================================
+
+-- Partitioning for history_logs
+CREATE TABLE IF NOT EXISTS history_logs (
+    id UUID DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL,
+    table_name VARCHAR(50) NOT NULL,
+    record_id UUID NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    diff_json JSONB,
+    changed_by_user_id UUID,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(255),
+    request_id UUID NOT NULL,
+    PRIMARY KEY (id, created_at)
+) PARTITION BY RANGE (created_at);
+
+-- Create initial partitions for history_logs
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'history_logs_' || to_char(now(), 'YYYY_MM')) THEN
+        EXECUTE 'CREATE TABLE history_logs_' || to_char(now(), 'YYYY_MM') || ' PARTITION OF history_logs FOR VALUES FROM (''' || date_trunc('month', now()) || ''') TO (''' || date_trunc('month', now() + interval '1 month') || ''')';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'history_logs_' || to_char(now() + interval '1 month', 'YYYY_MM')) THEN
+        EXECUTE 'CREATE TABLE history_logs_' || to_char(now() + interval '1 month', 'YYYY_MM') || ' PARTITION OF history_logs FOR VALUES FROM (''' || date_trunc('month', now() + interval '1 month') || ''') TO (''' || date_trunc('month', now() + interval '2 months') || ''')';
+    END IF;
+END
+$$;
 
 -- ===============================================================
 -- Remediation Patch v3.6.2

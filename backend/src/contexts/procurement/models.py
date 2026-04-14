@@ -50,6 +50,7 @@ class PurchaseOrder(CITMSBaseModel):
     total_amount: Mapped[float] = mapped_column(Numeric(15, 2), default=0)
     requested_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     approved_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    version: Mapped[int] = mapped_column(Integer, default=1)
     
     items: Mapped[List["PurchaseItem"]] = relationship(back_populates="po", cascade="all, delete-orphan")
 

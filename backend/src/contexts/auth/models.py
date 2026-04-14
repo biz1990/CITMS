@@ -3,9 +3,10 @@ from datetime import datetime
 from typing import Optional, List, Any
 import uuid
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, JSON, Integer, text, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.src.infrastructure.models.base import CITMSBaseModel
+from backend.src.infrastructure.database import Base
 
 class Role(CITMSBaseModel):
     __tablename__ = "roles"
@@ -17,7 +18,10 @@ class Role(CITMSBaseModel):
         secondary="role_permissions", back_populates="roles"
     )
     users: Mapped[List[User]] = relationship(
-        secondary="user_roles", back_populates="roles"
+        secondary="user_roles", 
+        back_populates="roles",
+        primaryjoin="Role.id == UserRole.role_id",
+        secondaryjoin="User.id == UserRole.user_id"
     )
 
 class Permission(CITMSBaseModel):
@@ -74,7 +78,10 @@ class User(CITMSBaseModel):
     
     # Relationships
     roles: Mapped[List[Role]] = relationship(
-        secondary="user_roles", back_populates="users"
+        secondary="user_roles", 
+        back_populates="users",
+        primaryjoin="User.id == UserRole.user_id",
+        secondaryjoin="Role.id == UserRole.role_id"
     )
 
 class UserRole(CITMSBaseModel):
@@ -111,3 +118,20 @@ class AuditLog(CITMSBaseModel):
     
     # Relationships
     user: Mapped[Optional[User]] = relationship(foreign_keys=[user_id])
+
+class HistoryLog(Base):
+    __tablename__ = "history_logs"
+    __table_args__ = {
+        'postgresql_partition_by': 'RANGE (created_at)'
+    }
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True, default=datetime.utcnow, server_default=text("NOW()"))
+    table_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    record_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    diff_json: Mapped[Optional[dict]] = mapped_column(JSONB)
+    changed_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"))
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255))
+    request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)

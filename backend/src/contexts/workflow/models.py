@@ -28,6 +28,7 @@ class WorkflowRequest(CITMSBaseModel):
     requested_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     effective_date: Mapped[datetime] = mapped_column(DateTime)
     notes: Mapped[Optional[str]] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, default=1)
     
     # Relationships
     approvals: Mapped[List["ApprovalHistory"]] = relationship(back_populates="request")

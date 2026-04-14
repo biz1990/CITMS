@@ -1,5 +1,5 @@
 from __future__ import annotations
-from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, JSON, text, Numeric, Index
+from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, JSON, text, Numeric, Index, Text
 from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.src.infrastructure.models.base import CITMSBaseModel
@@ -63,6 +63,8 @@ class Device(CITMSBaseModel):
     auto_asset_tag: Mapped[Optional[str]] = mapped_column(String(50))
     alternative_macs: Mapped[dict] = mapped_column(JSONB, default=text("'[]'::jsonb"))
     last_reconciled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
 
     # Financial fields for depreciation
     purchase_price: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
@@ -76,6 +78,13 @@ class Device(CITMSBaseModel):
 
 class DeviceComponent(CITMSBaseModel):
     __tablename__ = "device_components"
+    __table_args__ = (
+        Index(
+            "idx_device_components_specs",
+            text("specifications"),
+            postgresql_using="gin"
+        ),
+    )
     
     device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id"))
     component_type: Mapped[str] = mapped_column(String(50))
@@ -102,6 +111,8 @@ class DeviceConnection(CITMSBaseModel):
     port_name: Mapped[Optional[str]] = mapped_column(String(50))
     slot_name: Mapped[Optional[str]] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE")
+    connected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    disconnected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     
     source_device: Mapped["Device"] = relationship("Device", foreign_keys=[source_device_id])
     target_device: Mapped["Device"] = relationship("Device", foreign_keys=[target_device_id])

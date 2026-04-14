@@ -43,6 +43,7 @@ class Ticket(CITMSBaseModel):
     is_sla_breached: Mapped[bool] = mapped_column(Boolean, default=False)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
     
     # Change Management
     is_change_request: Mapped[bool] = mapped_column(Boolean, default=False)
